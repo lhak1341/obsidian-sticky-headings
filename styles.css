@@ -48,3 +48,18 @@ settings:
 .view-content {
   position: relative;
 }
+
+.is-hidden {
+  display: none !important;
+}
+
+.sticky-headings-suggestion-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-direction: row;
+}
+
+.sticky-headings-suggestion-item.is-current-heading {
+  color: var(--text-accent);
+}

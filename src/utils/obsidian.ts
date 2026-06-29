@@ -14,7 +14,7 @@ export function getHeadings(file: TFile, app: App) {
 }
 
 export function parseMarkdown(markdown: string, app: App): Promise<string> {
-  const div = document.createElement('div');
+  const div = activeDocument.createElement('div');
   const activeView = app.workspace.getActiveViewOfType(MarkdownView);
 
   if (!activeView) {

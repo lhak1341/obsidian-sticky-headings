@@ -17,13 +17,13 @@ export function animateScroll(
     target.scrollTop = scrollTop;
     onUpdate(ease);
     if (progress < 1) {
-      animationFrame = requestAnimationFrame(step);
+      animationFrame = window.requestAnimationFrame(step);
     } else {
       onComplete();
     }
   }
 
-  animationFrame = requestAnimationFrame(step);
+  animationFrame = window.requestAnimationFrame(step);
 
   return () => {
     cancelAnimationFrame(animationFrame);

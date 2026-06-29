@@ -1,8 +1,10 @@
 import stylistic from '@stylistic/eslint-plugin';
 import eslint from '@eslint/js';
 import tseslint from 'typescript-eslint';
+import obsidianmd from 'eslint-plugin-obsidianmd';
 
 export default tseslint.config(
+  ...obsidianmd.configs.recommended,
   {
     extends: [
       eslint.configs.recommended,

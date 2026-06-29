@@ -1,6 +1,6 @@
 import type StickyHeadingsPlugin from 'main';
-import type { App } from 'obsidian';
-import { PluginSettingTab, Setting } from 'obsidian';
+import type { App, SettingDefinitionItem } from 'obsidian';
+import { PluginSettingTab } from 'obsidian';
 import L from './i18n';
 import type { ISetting } from './types';
 
@@ -23,123 +23,111 @@ export default class StickyHeadingsSetting extends PluginSettingTab {
     this.plugin = plugin;
   }
 
-  update(data: ISetting) {
-    this.plugin.settings = data;
-    this.plugin.saveSettings();
+  override async setControlValue(key: string, value: unknown): Promise<void> {
+    await super.setControlValue(key, value);
     this.plugin.onSettingChanged();
+    this.update();
   }
 
-  display(): void {
-    const { containerEl } = this;
-    containerEl.empty();
-    new Setting(containerEl)
-      .setName(L.setting.mode.title())
-      .setDesc(L.setting.mode.description())
-      .addDropdown(dropdown => {
-        dropdown.addOption('default', L.setting.mode.default());
-        dropdown.addOption('concise', L.setting.mode.concise());
-        dropdown.addOption('disable', L.setting.mode.disable());
-        dropdown.setValue(this.plugin.settings.mode);
-        dropdown.onChange(value => {
-          this.update({
-            ...this.plugin.settings,
+  override getSettingDefinitions(): SettingDefinitionItem[] {
+    const notDisabled = (): boolean => this.plugin.settings.mode !== 'disable';
 
-            mode: value as 'default' | 'concise',
-          });
-          this.display();
-        });
-      });
-    this.plugin.settings.mode !== 'disable' &&
-    new Setting(containerEl)
-      .setName(L.setting.max.title())
-      .setDesc(L.setting.max.description())
-      .addText(text => {
-        text.setValue(this.plugin.settings.max.toString());
-        text.onChange(value => {
-          this.update({
-            ...this.plugin.settings,
-            max: parseInt(value, 10) || 0,
-          });
-        });
-      });
-    new Setting(containerEl)
-      .setName(L.setting.scrollBehaviour.title())
-      .setDesc(L.setting.scrollBehaviour.description())
-      .addDropdown(dropdown => {
-        dropdown.addOption('smooth', L.setting.scrollBehaviour.smooth());
-        dropdown.addOption('instant', L.setting.scrollBehaviour.instant());
-        dropdown.setValue(this.plugin.settings.scrollBehaviour);
-        dropdown.onChange(value => {
-          this.update({
-            ...this.plugin.settings,
-            scrollBehaviour: value as ScrollBehavior,
-          });
-        });
-      });
-    this.plugin.settings.mode !== 'disable' &&
-    new Setting(containerEl).setName(L.setting.theme.title()).addDropdown(dropdown => {
-      dropdown.addOption('flat', 'flat');
-      dropdown.addOption('blur', 'blur');
-      dropdown.addOption('float', 'float');
-      dropdown.setValue(this.plugin.settings.theme);
-      dropdown.onChange(value => {
-        this.update({
-          ...this.plugin.settings,
-
-          theme: value,
-        });
-      });
-    });
-    this.plugin.settings.mode !== 'disable' &&
-    new Setting(containerEl)
-      .setName(L.setting.indicators.title())
-      .setDesc(L.setting.indicators.description())
-      .addToggle(toggle => {
-        toggle.setValue(this.plugin.settings.showIcon);
-        toggle.onChange(value => {
-          this.update({
-            ...this.plugin.settings,
-            showIcon: value,
-          });
-        });
-      });
-    this.plugin.settings.mode !== 'disable' &&
-    new Setting(containerEl)
-      .setName(L.setting.autoShowFileName.title())
-      .setDesc(L.setting.autoShowFileName.description())
-      .addToggle(toggle => {
-        toggle.setValue(this.plugin.settings.autoShowFileName);
-        toggle.onChange(value => {
-          this.update({
-            ...this.plugin.settings,
-            autoShowFileName: value,
-          });
-        });
-      });
-    new Setting(containerEl).setName(L.setting.showInStatusBar()).addToggle(toggle => {
-      toggle.setValue(this.plugin.settings.showInStatusBar);
-      toggle.onChange(value => {
-        this.update({
-          ...this.plugin.settings,
-          showInStatusBar: value,
-        });
-      });
-    });
-    this.plugin.settings.mode !== 'disable' &&
-    new Setting(containerEl)
-      .setName(L.setting.boundaryOffset.title())
-      .setDesc(L.setting.boundaryOffset.description())
-      .addText(text => {
-        text.setValue(this.plugin.settings.boundaryOffset);
-        text.onChange(value => {
-          const isValid = /^-?\d+(%|px)$/.test(value);
-          if (isValid) {
-            this.update({
-              ...this.plugin.settings,
-              boundaryOffset: value,
+    return [
+      {
+        name: L.setting.mode.title(),
+        desc: L.setting.mode.description(),
+        control: {
+          type: 'dropdown',
+          key: 'mode',
+          options: {
+            default: L.setting.mode.default(),
+            concise: L.setting.mode.concise(),
+            disable: L.setting.mode.disable(),
+          },
+        },
+      },
+      {
+        name: L.setting.max.title(),
+        desc: L.setting.max.description(),
+        visible: notDisabled,
+        render: setting => {
+          setting.addText(text => {
+            text.setValue(String(this.plugin.settings.max));
+            text.onChange(async value => {
+              this.plugin.settings.max = parseInt(value, 10) || 0;
+              await this.plugin.saveSettings();
+              this.plugin.onSettingChanged();
             });
-          }
-        });
-      });
+          });
+        },
+      },
+      {
+        name: L.setting.scrollBehaviour.title(),
+        desc: L.setting.scrollBehaviour.description(),
+        control: {
+          type: 'dropdown',
+          key: 'scrollBehaviour',
+          options: {
+            smooth: L.setting.scrollBehaviour.smooth(),
+            instant: L.setting.scrollBehaviour.instant(),
+          },
+        },
+      },
+      {
+        name: L.setting.theme.title(),
+        visible: notDisabled,
+        control: {
+          type: 'dropdown',
+          key: 'theme',
+          options: {
+            flat: 'Flat',
+            blur: 'Blur',
+            float: 'Float',
+          },
+        },
+      },
+      {
+        name: L.setting.indicators.title(),
+        desc: L.setting.indicators.description(),
+        visible: notDisabled,
+        control: {
+          type: 'toggle',
+          key: 'showIcon',
+        },
+      },
+      {
+        name: L.setting.autoShowFileName.title(),
+        desc: L.setting.autoShowFileName.description(),
+        visible: notDisabled,
+        control: {
+          type: 'toggle',
+          key: 'autoShowFileName',
+        },
+      },
+      {
+        name: L.setting.showInStatusBar(),
+        control: {
+          type: 'toggle',
+          key: 'showInStatusBar',
+        },
+      },
+      {
+        name: L.setting.boundaryOffset.title(),
+        desc: L.setting.boundaryOffset.description(),
+        visible: notDisabled,
+        render: setting => {
+          setting.addText(text => {
+            text.setValue(this.plugin.settings.boundaryOffset);
+            text.onChange(async value => {
+              if (/^-?\d+(%|px)$/.test(value)) {
+                this.plugin.settings.boundaryOffset = value;
+                await this.plugin.saveSettings();
+                this.plugin.onSettingChanged();
+              }
+            });
+          });
+        },
+      },
+    ];
   }
 }

@@ -47,7 +47,6 @@ export default class StickyHeadingsPlugin extends Plugin {
     { leading: true, trailing: true }
   );
 
-  // eslint-disable-next-line @typescript-eslint/no-misused-promises
   async onload() {
     await this.loadSettings();
 
@@ -56,7 +55,7 @@ export default class StickyHeadingsPlugin extends Plugin {
     this.registerEvent(
       this.app.workspace.on('active-leaf-change', () => {
         // timeout to wait for cm.editor to load
-        setTimeout(() => {
+        window.setTimeout(() => {
           this.checkFileResolveMap();
         }, 100);
       })
@@ -77,13 +76,13 @@ export default class StickyHeadingsPlugin extends Plugin {
     this.statusBarEl = this.addStatusBarItem();
     this.statusBarEl.addClass('mod-clickable');
     if (!this.settings.showInStatusBar) {
-      this.statusBarEl.style.display = 'none';
+      this.statusBarEl.addClass('is-hidden');
     }
     this.statusBarEl.addEventListener('click', this.showSuggester.bind(this));
     this.statusBarItemEl = new StatusBarItemComponent(this.statusBarEl, this.settings);
     this.addCommand({
       id: 'quick navigate headings',
-      name: 'Quick Navigate Headings',
+      name: 'Quick navigate headings',
       checkCallback: checking => {
         const view = this.app.workspace.getActiveViewOfType(MarkdownView);
         if (view) {
@@ -335,11 +334,7 @@ export default class StickyHeadingsPlugin extends Plugin {
       }
     });
     if (this.statusBarEl) {
-      if (this.settings.showInStatusBar) {
-        this.statusBarEl.style.display = 'inline-flex';
-      } else {
-        this.statusBarEl.style.display = 'none';
-      }
+      this.statusBarEl.toggleClass('is-hidden', !this.settings.showInStatusBar);
     }
   }
 
