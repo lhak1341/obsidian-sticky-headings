@@ -22,7 +22,7 @@ export default tseslint.config(
     },
   },
   {
-    ignores: ['main.js', 'dist/**/*', 'i18n/i18n-*.ts'],
+    ignores: ['main.js', 'dist/**/*', 'i18n/i18n-*.ts', '**/*.test.ts'],
   },
   {
     rules: {

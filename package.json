@@ -4,6 +4,7 @@
   "description": "Display headings tree during editing and preview to indicate the current position.",
   "main": "main.js",
   "scripts": {
+    "test": "bun test",
     "dev": "node esbuild.config.mjs",
     "build": "node esbuild.config.mjs production",
     "deploy": "bun run build && cp main.js manifest.json styles.css '/Users/lhak/Library/Mobile Documents/iCloud~md~obsidian/Documents/lhakZettel/.obsidian/plugins/another-sticky-headings/'",

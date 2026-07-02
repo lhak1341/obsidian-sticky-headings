@@ -1,7 +1,7 @@
-/* eslint-disable @typescript-eslint/no-unnecessary-condition */
+/* eslint-disable @typescript-eslint/no-unnecessary-condition, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-argument */
 import type { TFile } from 'obsidian';
 import { MarkdownView, Plugin } from 'obsidian';
-import type { FileResolveEntry, Heading, ISetting } from './types';
+import type { FileResolveEntry, ISetting } from './types';
 import StickyHeadingsSetting, { defaultSettings } from './settings';
 import {
   getContainerEl,
@@ -16,10 +16,9 @@ import {
 
 import StickyHeaderComponent from './stickyHeader';
 import StatusBarItemComponent from './ui/statusBar/statusBarItem';
-import getShownHeadings, { trivial } from './utils/getShownHeadings';
+import { extractOffsets } from './utils/headingOffsets';
 import { throttle } from 'lodash';
-import { calcIndentLevels } from './utils/calcIndentLevels';
-import { makeExpectedHeadings } from './utils/makeExpectedHeadings';
+import { compute, makeExpectedHeadings } from './utils/headingPipeline';
 import { HeadingSuggester } from './ui/statusBar/suggester';
 import { animateScroll } from './utils/scroll';
 
@@ -232,24 +231,15 @@ export default class StickyHeadingsPlugin extends Plugin {
     if (item) {
       const headings = await this.retrieveHeadings(item.file, item.view);
       item.headings = headings;
-      const headingsInView = headings.filter(heading => heading.offset < scrollTop + stuckHeaderHeight);
-      let findalHeadings: Heading[] = [];
-      trivial(headingsInView, findalHeadings, this.settings.mode);
-      if (this.settings.max) {
-        findalHeadings = findalHeadings.slice(-this.settings.max);
-      }
-      item.currentIndex = findalHeadings.length ? findalHeadings[findalHeadings.length - 1].index : -1;
-      const indentList = calcIndentLevels(findalHeadings);
+      const displayed = compute(headings, scrollTop, stuckHeaderHeight, this.settings);
+      item.currentIndex = displayed.length ? displayed[displayed.length - 1].index : -1;
       item.headingEl.updateHeadings(
-        findalHeadings.map((heading, i) => ({
-          ...heading,
-          indentLevel: indentList[i] || 0,
-        })),
+        displayed,
         makeExpectedHeadings(headings, this.settings.max, this.settings.mode),
         this.settings.autoShowFileName && needShowFileName(item.file, this.app),
         item.view
       );
-      this.statusBarItemEl?.switchFile(item.file, findalHeadings[findalHeadings.length - 1], item.view);
+      this.statusBarItemEl?.switchFile(item.file, displayed[displayed.length - 1], item.view);
     } else {
       this.statusBarItemEl?.hide();
     }
@@ -305,24 +295,22 @@ export default class StickyHeadingsPlugin extends Plugin {
   }
 
   async retrieveHeadings(file: TFile, view: MarkdownView): Promise<Heading[]> {
-    const headings = getHeadings(file, this.app);
+    const rawHeadings = getHeadings(file, this.app);
+    if (!rawHeadings || rawHeadings.length === 0) return [];
 
-    if (!headings || headings.length === 0) return [];
+    // Step 1: resolve each heading's Y-position from the DOM
+    const positioned = extractOffsets(rawHeadings, view, this.settings);
 
-    return await Promise.all(
-      getShownHeadings(headings, view, this.settings).map(async heading => {
+    // Step 2: enrich with parsed markdown titles (async, results cached)
+    return Promise.all(
+      positioned.map(async heading => {
         const cacheKey = heading.heading;
-        let title: string;
         if (cacheKey in this.markdownCache) {
-          title = this.markdownCache[cacheKey];
-        } else {
-          title = await parseMarkdown(heading.heading, this.app);
-          this.markdownCache[cacheKey] = title;
+          return { ...heading, title: this.markdownCache[cacheKey] };
         }
-        return {
-          ...heading,
-          title,
-        };
+        const title = await parseMarkdown(heading.heading, this.app);
+        this.markdownCache[cacheKey] = title;
+        return { ...heading, title };
       })
     );
   }
