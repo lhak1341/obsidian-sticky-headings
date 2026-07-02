@@ -1,7 +1,9 @@
 /* eslint-disable @typescript-eslint/no-unnecessary-condition, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-argument */
 import type { TFile } from 'obsidian';
 import { MarkdownView, Plugin } from 'obsidian';
-import type { FileResolveEntry, ISetting } from './types';
+import type { ISetting } from './types';
+import { ViewRegistry } from './viewRegistry';
+import type { ViewEntry } from './viewRegistry';
 import StickyHeadingsSetting, { defaultSettings } from './settings';
 import {
   getContainerEl,
@@ -14,7 +16,7 @@ import {
   parseMarkdown,
 } from './utils/obsidian';
 
-import StickyHeaderComponent from './stickyHeader';
+import { mountStickyHeaders, updateHeadings as updateStickyHeadings } from './stickyHeader';
 import StatusBarItemComponent from './ui/statusBar/statusBarItem';
 import { extractOffsets } from './utils/headingOffsets';
 import { throttle } from 'lodash';
@@ -22,23 +24,20 @@ import { compute, makeExpectedHeadings } from './utils/headingPipeline';
 import { HeadingSuggester } from './ui/statusBar/suggester';
 import { animateScroll } from './utils/scroll';
 
-type FileResolveMap = Map<string, FileResolveEntry>;
-
 export default class StickyHeadingsPlugin extends Plugin {
   settings: ISetting = defaultSettings;
-  headingEl: StickyHeaderComponent | undefined;
   statusBarItemEl: StatusBarItemComponent | undefined;
-  fileResolveMap: FileResolveMap = new Map();
+  registry!: ViewRegistry;
   statusBarEl: HTMLElement | undefined;
   markdownCache: Record<string, string> = {};
 
   detectPosition = throttle(
-    (event: Event, scroller: HTMLElement, item: FileResolveEntry) => {
+    (event: Event, scroller: HTMLElement, entry: ViewEntry) => {
       const target = event.target as HTMLElement | null;
       if (scroller) {
         const container = target?.closest('.view-content');
         if (container) {
-          this.setHeadingsInView(scroller, item);
+          this.setHeadingsInView(scroller, entry);
         }
       }
     },
@@ -48,6 +47,7 @@ export default class StickyHeadingsPlugin extends Plugin {
 
   async onload() {
     await this.loadSettings();
+    this.registry = new ViewRegistry(ref => this.app.workspace.offref(ref));
 
     this.initStatusBarItem();
 
@@ -99,7 +99,7 @@ export default class StickyHeadingsPlugin extends Plugin {
     const view = this.app.workspace.getActiveViewOfType(MarkdownView);
     if (view) {
       const { id } = view.leaf;
-      const item = this.fileResolveMap.get(id || '');
+      const item = this.registry.get(id || '');
       if (item) {
         const { headings, currentIndex } = item;
         const modal = new HeadingSuggester(view.app, headings, currentIndex, async ({ offset, index }) => {
@@ -121,7 +121,7 @@ export default class StickyHeadingsPlugin extends Plugin {
     if (view) {
       const { id } = view.leaf;
       if (id) {
-        const item = this.fileResolveMap.get(id);
+        const item = this.registry.get(id);
         if (item) {
           const target = (isEditMode(view) ? view.editMode.editorEl : view.previewMode.containerEl).find(
             '.sticky-headings-shadow'
@@ -139,8 +139,10 @@ export default class StickyHeadingsPlugin extends Plugin {
               subtree: true,
               childList: true,
             });
-            item.headingEl.predictHeadingsHeight(
-              makeExpectedHeadings(item.headings, this.settings.max, this.settings.mode)(index)
+            item.stickyHeaders.forEach(c =>
+              c.$set({
+                expectedHeadings: makeExpectedHeadings(item.headings, this.settings.max, this.settings.mode)(index),
+              })
             );
           });
         }
@@ -155,28 +157,17 @@ export default class StickyHeadingsPlugin extends Plugin {
       const file = view.getFile();
       if (file && isMarkdownFile(file)) {
         const headings = await this.retrieveHeadings(file, view);
-        if (!this.fileResolveMap.has(id)) {
-          const headingEl = new StickyHeaderComponent(view, this.settings);
+        if (!this.registry.has(id)) {
+          const stickyHeaders = mountStickyHeaders(view, this.settings);
           // eslint-disable-next-line @typescript-eslint/no-misused-promises
           const layoutChangeEvent = this.app.workspace.on('layout-change', this.handleComponentUpdate.bind(this, view));
-          this.fileResolveMap.set(id, {
-            resolve: true,
-            file,
-            container: view.contentEl,
-            view,
-            headings,
-            headingEl,
-            layoutChangeEvent,
-            editMode: isEditSourceMode(view),
-            currentIndex: -1,
-          });
-          this.registerEvent(layoutChangeEvent);
+          this.registry.register(id, file, view, headings, stickyHeaders, isEditSourceMode(view), layoutChangeEvent);
         } else {
-          const item = this.fileResolveMap.get(id);
-          if (item) {
-            item.editMode = isEditSourceMode(view);
-            item.headings = headings;
-            item.file = file;
+          const entry = this.registry.get(id);
+          if (entry) {
+            entry.editMode = isEditSourceMode(view);
+            entry.headings = headings;
+            entry.file = file;
           }
         }
         await this.handleComponentUpdate(view);
@@ -184,91 +175,58 @@ export default class StickyHeadingsPlugin extends Plugin {
     }
   }
 
-  async updateHeadings(file: TFile, view: MarkdownView, item: FileResolveEntry) {
-    await this.setHeadingsInView(getScroller(view), item);
-    // item.headingEl.updateHeadings(item.headings);
-    return item.headings;
+  async updateHeadings(file: TFile, view: MarkdownView, entry: ViewEntry) {
+    await this.setHeadingsInView(getScroller(view), entry);
+    return entry.headings;
   }
 
   async handleComponentUpdate(view: MarkdownView) {
     const scroller = getScroller(view);
     const { id } = view.leaf;
     if (id) {
-      const item = this.fileResolveMap.get(id);
-      if (item) {
-        // Remove existing scroll listener if it exists
-        if (item.scrollListener && item.view.contentEl) {
-          item.view.contentEl.removeEventListener('scroll', item.scrollListener, true);
-        }
-
-        item.editMode = isEditSourceMode(item.view);
-        item.headingEl.updateEditMode(isEditSourceMode(item.view));
+      const entry = this.registry.get(id);
+      if (entry) {
+        entry.editMode = isEditSourceMode(entry.view);
+        entry.stickyHeaders.forEach(c => c.$set({ editMode: entry.editMode }));
 
         if (scroller) {
-          await this.setHeadingsInView(scroller, item);
-          // Create new scroll listener
-          const newScrollListener = (event: Event) => {
-            this.detectPosition(event, scroller, item);
-          };
-          item.view.contentEl.addEventListener('scroll', newScrollListener, true);
-
-          // Update the fileResolveMap with the new scroll listener
-          item.scrollListener = newScrollListener;
-          this.fileResolveMap.set(id, item);
+          await this.setHeadingsInView(scroller, entry);
+          entry.reattach(scroller, (event: Event) => this.detectPosition(event, scroller, entry));
         } else {
-          // If there's no scroller, ensure we remove any existing listener
-          item.scrollListener = null;
-          this.fileResolveMap.set(id, item);
+          entry.detachScrollListener();
         }
-        this.updateHeadings(item.file, item.view, item);
+        this.updateHeadings(entry.file, entry.view, entry);
       }
     }
   }
 
-  async setHeadingsInView(scroller: HTMLElement, item: FileResolveEntry) {
+  async setHeadingsInView(scroller: HTMLElement, entry: ViewEntry) {
     const { scrollTop } = scroller;
     const stuckHeaderHeight = getContainerEl(scroller)?.clientHeight || 0;
-    if (item) {
-      const headings = await this.retrieveHeadings(item.file, item.view);
-      item.headings = headings;
+    if (entry) {
+      const headings = await this.retrieveHeadings(entry.file, entry.view);
+      entry.headings = headings;
       const displayed = compute(headings, scrollTop, stuckHeaderHeight, this.settings);
-      item.currentIndex = displayed.length ? displayed[displayed.length - 1].index : -1;
-      item.headingEl.updateHeadings(
+      entry.currentIndex = displayed.length ? displayed[displayed.length - 1].index : -1;
+      updateStickyHeadings(
+        entry.stickyHeaders,
         displayed,
         makeExpectedHeadings(headings, this.settings.max, this.settings.mode),
-        this.settings.autoShowFileName && needShowFileName(item.file, this.app),
-        item.view
+        this.settings.autoShowFileName && needShowFileName(entry.file, this.app),
+        entry.view
       );
-      this.statusBarItemEl?.switchFile(item.file, displayed[displayed.length - 1], item.view);
+      this.statusBarItemEl?.switchFile(entry.file, displayed[displayed.length - 1], entry.view);
     } else {
       this.statusBarItemEl?.hide();
     }
   }
 
-  handleEditorChange(file: TFile | null) {
-    if (file && isMarkdownFile(file)) {
-      this.fileResolveMap.forEach(item => {
-        if (item.file.path === file.path) {
-          item.resolve = false;
-        }
-      });
-    }
-  }
-
   async handleResolve(file: TFile) {
     if (isMarkdownFile(file)) {
-      const ids: string[] = [];
-      for (const [id, item] of this.fileResolveMap) {
-        if (item.file.path === file.path) {
-          await this.updateHeadings(file, item.view, item);
-          if (!item.resolve) {
-            item.resolve = true;
-            ids.push(id);
-          }
+      for (const [, entry] of this.registry.entries()) {
+        if (entry.file.path === file.path) {
+          await this.updateHeadings(file, entry.view, entry);
         }
-      }
-      if (ids.length > 0) {
-        this.checkFileResolveMap();
       }
     }
   }
@@ -285,11 +243,9 @@ export default class StickyHeadingsPlugin extends Plugin {
       }
     });
 
-    this.fileResolveMap.forEach((_, id) => {
+    this.registry.forEach((_, id) => {
       if (!validIds.has(id)) {
-        const item = this.fileResolveMap.get(id);
-        item?.headingEl.removeStickyHeader();
-        this.fileResolveMap.delete(id);
+        this.registry.unregister(id);
       }
     });
   }
@@ -316,10 +272,8 @@ export default class StickyHeadingsPlugin extends Plugin {
   }
 
   onSettingChanged() {
-    this.fileResolveMap.forEach(item => {
-      if (item.headingEl) {
-        item.headingEl.updateSettings(this.settings);
-      }
+    this.registry.forEach(entry => {
+      entry.stickyHeaders.forEach(c => c.$set({ settings: this.settings }));
     });
     if (this.statusBarEl) {
       this.statusBarEl.toggleClass('is-hidden', !this.settings.showInStatusBar);
@@ -327,19 +281,7 @@ export default class StickyHeadingsPlugin extends Plugin {
   }
 
   onunload() {
-    this.fileResolveMap.forEach((item, id) => {
-      item.headingEl.removeStickyHeader();
-
-      if (item.layoutChangeEvent) {
-        this.app.workspace.offref(item.layoutChangeEvent);
-      }
-
-      if (item.scrollListener && item.view.contentEl) {
-        item.view.contentEl.removeEventListener('scroll', item.scrollListener, true);
-      }
-    });
-
-    this.fileResolveMap.clear();
+    this.registry.destroyAll();
   }
 
   async loadSettings() {

@@ -1,5 +1,4 @@
-import type { MarkdownView, TFile, HeadingCache, EventRef } from 'obsidian';
-import type StickyHeaderComponent from './stickyHeader';
+import type { HeadingCache } from 'obsidian';
 
 export interface ISetting {
   max: number;
@@ -10,19 +9,6 @@ export interface ISetting {
   autoShowFileName: boolean;
   showInStatusBar: boolean;
   boundaryOffset: string;
-}
-
-export interface FileResolveEntry {
-  resolve: boolean;
-  file: TFile;
-  view: MarkdownView;
-  container: HTMLElement;
-  headings: Heading[];
-  headingEl: StickyHeaderComponent;
-  layoutChangeEvent: EventRef;
-  scrollListener?: ((event: Event) => void) | null;
-  editMode: boolean;
-  currentIndex: number;
 }
 
 export interface Heading extends HeadingCache {

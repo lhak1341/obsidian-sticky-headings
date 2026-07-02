@@ -2,68 +2,30 @@ import StickyHeader from './ui/StickyHeader.svelte';
 import type { MarkdownView } from 'obsidian';
 import type { Heading, ISetting } from './types';
 
-export default class StickyHeaderComponent {
-  stickyHeaderComponents!: [StickyHeader, StickyHeader];
+export type StickyHeaderPair = [StickyHeader, StickyHeader];
 
-  constructor(view: MarkdownView, settings: ISetting) {
-    this.addStickyHeader(view, settings);
-  }
+export function mountStickyHeaders(view: MarkdownView, settings: ISetting): StickyHeaderPair {
+  const sharedProps = {
+    headings: [],
+    editMode: false,
+    view,
+    getExpectedHeadings: () => [],
+    settings,
+    showFileName: false,
+    expectedHeadings: [],
+  };
+  return [
+    new StickyHeader({ target: view.previewMode.containerEl, props: sharedProps }),
+    new StickyHeader({ target: view.editMode.editorEl, props: sharedProps }),
+  ];
+}
 
-  addStickyHeader(view: MarkdownView, settings: ISetting) {
-    const previewContentEl = view.previewMode.containerEl;
-    const sourceContentEl = view.editMode.editorEl;
-    this.stickyHeaderComponents = [
-      new StickyHeader({
-        target: previewContentEl,
-        props: {
-          headings: [],
-          editMode: false,
-          view,
-          getExpectedHeadings: () => [],
-          settings,
-          showFileName: false,
-          expectedHeadings: [],
-        },
-      }),
-      new StickyHeader({
-        target: sourceContentEl,
-        props: {
-          headings: [],
-          editMode: false,
-          view,
-          getExpectedHeadings: () => [],
-          settings,
-          showFileName: false,
-          expectedHeadings: [],
-        },
-      }),
-    ];
-  }
-
-  removeStickyHeader() {
-    this.stickyHeaderComponents.forEach(conponent => conponent.$destroy());
-  }
-
-  updateHeadings(
-    headings: Heading[],
-    getExpectedHeadings: (index: number) => Heading[],
-    showFileName: boolean,
-    view: MarkdownView
-  ) {
-    this.stickyHeaderComponents.forEach(conponent =>
-      conponent.$set({ headings, getExpectedHeadings, showFileName, view })
-    );
-  }
-
-  predictHeadingsHeight(headings: Heading[]) {
-    this.stickyHeaderComponents.forEach(component => component.$set({ expectedHeadings: headings }));
-  }
-
-  updateEditMode(editMode: boolean) {
-    this.stickyHeaderComponents.forEach(conponent => conponent.$set({ editMode }));
-  }
-
-  updateSettings(settings: ISetting) {
-    this.stickyHeaderComponents.forEach(conponent => conponent.$set({ settings }));
-  }
+export function updateHeadings(
+  pair: StickyHeaderPair,
+  headings: Heading[],
+  getExpectedHeadings: (index: number) => Heading[],
+  showFileName: boolean,
+  view: MarkdownView
+): void {
+  pair.forEach(c => c.$set({ headings, getExpectedHeadings, showFileName, view }));
 }
