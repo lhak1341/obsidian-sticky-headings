@@ -1,4 +1,4 @@
-import type { Heading, ISetting } from 'src/types';
+import type { Heading, ISetting } from '../types';
 
 // Recursively selects the "ancestor" headings that represent the current scroll context.
 // For each group sharing the shallowest level, default mode keeps all of them; concise

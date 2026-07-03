@@ -2,7 +2,7 @@ import StatusBarItem from './StatusBarItem.svelte';
 import type { MarkdownView, TFile } from 'obsidian';
 import type { Heading, ISetting } from '../../types';
 
-export default class StickyHeaderComponent {
+export default class StatusBarItemComponent {
   statusBarItemComponent!: StatusBarItem;
 
   constructor(statusItemEl: HTMLElement, settings: ISetting, view?: MarkdownView) {
@@ -20,7 +20,7 @@ export default class StickyHeaderComponent {
     });
   }
 
-  removeStickyHeader() {
+  destroy() {
     this.statusBarItemComponent.$destroy();
   }
 

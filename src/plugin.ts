@@ -1,7 +1,6 @@
-/* eslint-disable @typescript-eslint/no-unnecessary-condition, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-argument */
 import type { TFile } from 'obsidian';
 import { MarkdownView, Plugin } from 'obsidian';
-import type { ISetting } from './types';
+import type { ISetting, Heading } from './types';
 import { ViewRegistry } from './viewRegistry';
 import type { ViewEntry } from './viewRegistry';
 import StickyHeadingsSetting, { defaultSettings } from './settings';
@@ -24,26 +23,14 @@ import { compute, makeExpectedHeadings } from './utils/headingPipeline';
 import { HeadingSuggester } from './ui/statusBar/suggester';
 import { animateScroll } from './utils/scroll';
 
+const MARKDOWN_CACHE_MAX = 500;
+
 export default class StickyHeadingsPlugin extends Plugin {
   settings: ISetting = defaultSettings;
   statusBarItemEl: StatusBarItemComponent | undefined;
   registry!: ViewRegistry;
   statusBarEl: HTMLElement | undefined;
   markdownCache: Record<string, string> = {};
-
-  detectPosition = throttle(
-    (event: Event, scroller: HTMLElement, entry: ViewEntry) => {
-      const target = event.target as HTMLElement | null;
-      if (scroller) {
-        const container = target?.closest('.view-content');
-        if (container) {
-          this.setHeadingsInView(scroller, entry);
-        }
-      }
-    },
-    50,
-    { leading: true, trailing: true }
-  );
 
   async onload() {
     await this.loadSettings();
@@ -127,23 +114,32 @@ export default class StickyHeadingsPlugin extends Plugin {
             '.sticky-headings-shadow'
           );
           return new Promise<number>(resolve => {
+            let resolved = false;
+            // observer references itself in the callback — valid because the callback only fires
+            // after the const binding is assigned (DOM mutations are always asynchronous)
             const observer = new MutationObserver(records => {
               for (const record of records) {
-                if ((record.target as HTMLElement).classList?.contains('sticky-headings-shadow-item')) {
+                if ((record.target as HTMLElement).classList.contains('sticky-headings-shadow-item') && !resolved) {
+                  resolved = true;
                   observer.disconnect();
                   resolve(target.clientHeight || 0);
                 }
               }
             });
-            observer.observe(target, {
-              subtree: true,
-              childList: true,
-            });
+            observer.observe(target, { subtree: true, childList: true });
             item.stickyHeaders.forEach(c =>
               c.$set({
                 expectedHeadings: makeExpectedHeadings(item.headings, this.settings.max, this.settings.mode)(index),
               })
             );
+            // Fallback: resolve after Svelte flushes DOM (next frame) if heading count didn't change
+            window.requestAnimationFrame(() => {
+              if (!resolved) {
+                resolved = true;
+                observer.disconnect();
+                resolve(target.clientHeight || 0);
+              }
+            });
           });
         }
       }
@@ -161,7 +157,14 @@ export default class StickyHeadingsPlugin extends Plugin {
           const stickyHeaders = mountStickyHeaders(view, this.settings);
           // eslint-disable-next-line @typescript-eslint/no-misused-promises
           const layoutChangeEvent = this.app.workspace.on('layout-change', this.handleComponentUpdate.bind(this, view));
-          this.registry.register(id, file, view, headings, stickyHeaders, isEditSourceMode(view), layoutChangeEvent);
+          this.registry.register(id, {
+            file,
+            view,
+            headings,
+            stickyHeaders,
+            editMode: isEditSourceMode(view),
+            layoutChangeEvent,
+          });
         } else {
           const entry = this.registry.get(id);
           if (entry) {
@@ -175,11 +178,6 @@ export default class StickyHeadingsPlugin extends Plugin {
     }
   }
 
-  async updateHeadings(file: TFile, view: MarkdownView, entry: ViewEntry) {
-    await this.setHeadingsInView(getScroller(view), entry);
-    return entry.headings;
-  }
-
   async handleComponentUpdate(view: MarkdownView) {
     const scroller = getScroller(view);
     const { id } = view.leaf;
@@ -189,13 +187,26 @@ export default class StickyHeadingsPlugin extends Plugin {
         entry.editMode = isEditSourceMode(entry.view);
         entry.stickyHeaders.forEach(c => c.$set({ editMode: entry.editMode }));
 
+        // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- getScroller types are non-null but Obsidian internals can be undefined before the view is ready
         if (scroller) {
           await this.setHeadingsInView(scroller, entry);
-          entry.reattach(scroller, (event: Event) => this.detectPosition(event, scroller, entry));
+          // Each entry gets its own throttle so scroll events in one view don't suppress another
+          entry.reattach(
+            scroller,
+            throttle(
+              (event: Event) => {
+                const target = event.target as HTMLElement | null;
+                if (target?.closest('.view-content')) {
+                  this.setHeadingsInView(scroller, entry);
+                }
+              },
+              50,
+              { leading: true, trailing: true }
+            )
+          );
         } else {
           entry.detachScrollListener();
         }
-        this.updateHeadings(entry.file, entry.view, entry);
       }
     }
   }
@@ -203,19 +214,20 @@ export default class StickyHeadingsPlugin extends Plugin {
   async setHeadingsInView(scroller: HTMLElement, entry: ViewEntry) {
     const { scrollTop } = scroller;
     const stuckHeaderHeight = getContainerEl(scroller)?.clientHeight || 0;
-    if (entry) {
-      const headings = await this.retrieveHeadings(entry.file, entry.view);
-      entry.headings = headings;
-      const displayed = compute(headings, scrollTop, stuckHeaderHeight, this.settings);
-      entry.currentIndex = displayed.length ? displayed[displayed.length - 1].index : -1;
-      updateStickyHeadings(
-        entry.stickyHeaders,
-        displayed,
-        makeExpectedHeadings(headings, this.settings.max, this.settings.mode),
-        this.settings.autoShowFileName && needShowFileName(entry.file, this.app),
-        entry.view
-      );
-      this.statusBarItemEl?.switchFile(entry.file, displayed[displayed.length - 1], entry.view);
+    const headings = await this.retrieveHeadings(entry.file, entry.view);
+    entry.headings = headings;
+    const displayed = compute(headings, scrollTop, stuckHeaderHeight, this.settings);
+    entry.currentIndex = displayed.length ? displayed[displayed.length - 1].index : -1;
+    updateStickyHeadings(
+      entry.stickyHeaders,
+      displayed,
+      makeExpectedHeadings(headings, this.settings.max, this.settings.mode),
+      this.settings.autoShowFileName && needShowFileName(entry.file, this.app),
+      entry.view
+    );
+    const lastDisplayed = displayed.at(-1);
+    if (lastDisplayed) {
+      this.statusBarItemEl?.switchFile(entry.file, lastDisplayed, entry.view);
     } else {
       this.statusBarItemEl?.hide();
     }
@@ -225,7 +237,11 @@ export default class StickyHeadingsPlugin extends Plugin {
     if (isMarkdownFile(file)) {
       for (const [, entry] of this.registry.entries()) {
         if (entry.file.path === file.path) {
-          await this.updateHeadings(file, entry.view, entry);
+          const scroller = getScroller(entry.view);
+          // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- same as above
+          if (scroller) {
+            await this.setHeadingsInView(scroller, entry);
+          }
         }
       }
     }
@@ -252,12 +268,15 @@ export default class StickyHeadingsPlugin extends Plugin {
 
   async retrieveHeadings(file: TFile, view: MarkdownView): Promise<Heading[]> {
     const rawHeadings = getHeadings(file, this.app);
-    if (!rawHeadings || rawHeadings.length === 0) return [];
+    if (rawHeadings.length === 0) return [];
 
     // Step 1: resolve each heading's Y-position from the DOM
     const positioned = extractOffsets(rawHeadings, view, this.settings);
 
     // Step 2: enrich with parsed markdown titles (async, results cached)
+    if (Object.keys(this.markdownCache).length >= MARKDOWN_CACHE_MAX) {
+      this.markdownCache = {};
+    }
     return Promise.all(
       positioned.map(async heading => {
         const cacheKey = heading.heading;

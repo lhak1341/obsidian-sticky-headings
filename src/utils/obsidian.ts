@@ -1,6 +1,6 @@
 import type { App, TAbstractFile } from 'obsidian';
 import { TFile, MarkdownView, MarkdownRenderer } from 'obsidian';
-import type { ISetting } from 'src/types';
+import type { ISetting } from '../types';
 
 export function isMarkdownFile(file: TFile | TAbstractFile) {
   if (!(file instanceof TFile)) {

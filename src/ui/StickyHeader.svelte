@@ -4,9 +4,9 @@
   import { getIcon, MarkdownView } from 'obsidian';
   import type { Heading, ISetting } from '../types';
   import { onDestroy, onMount } from 'svelte';
-  import { getScroller } from 'src/utils/obsidian';
+  import { getScroller } from '../utils/obsidian';
   import { delay } from '../utils/delay';
-  import { animateScroll } from 'src/utils/scroll';
+  import { animateScroll } from '../utils/scroll';
   export let headings: Heading[];
   export let editMode: boolean;
   export let view: MarkdownView;

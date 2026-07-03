@@ -2,9 +2,7 @@ export function animateScroll(
   target: HTMLElement,
   to: number,
   duration: number,
-  easing: (t: number) => number = t => t,
-  onUpdate: (t: number) => void = () => {},
-  onComplete: (...arg: unknown[]) => void = () => {}
+  easing: (t: number) => number = t => t
 ) {
   let start: number;
   let animationFrame: number;
@@ -15,11 +13,8 @@ export function animateScroll(
     const ease = easing(progress);
     const scrollTop = target.scrollTop + (to - target.scrollTop) * ease;
     target.scrollTop = scrollTop;
-    onUpdate(ease);
     if (progress < 1) {
       animationFrame = window.requestAnimationFrame(step);
-    } else {
-      onComplete();
     }
   }
 

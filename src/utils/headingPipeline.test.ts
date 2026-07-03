@@ -1,6 +1,6 @@
 import { test, expect } from 'bun:test';
 import { compute, makeExpectedHeadings } from './headingPipeline';
-import type { Heading, ISetting } from 'src/types';
+import type { Heading, ISetting } from '../types';
 
 function settings(overrides: Partial<ISetting> = {}): ISetting {
   return {

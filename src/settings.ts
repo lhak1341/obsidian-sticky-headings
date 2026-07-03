@@ -1,4 +1,4 @@
-import type StickyHeadingsPlugin from 'main';
+import type StickyHeadingsPlugin from './plugin';
 import type { App, SettingDefinitionItem } from 'obsidian';
 import { PluginSettingTab } from 'obsidian';
 import L from './i18n';
@@ -57,6 +57,7 @@ export default class StickyHeadingsSetting extends PluginSettingTab {
               this.plugin.settings.max = parseInt(value, 10) || 0;
               await this.plugin.saveSettings();
               this.plugin.onSettingChanged();
+              this.update();
             });
           });
         },
@@ -123,6 +124,7 @@ export default class StickyHeadingsSetting extends PluginSettingTab {
                 this.plugin.settings.boundaryOffset = value;
                 await this.plugin.saveSettings();
                 this.plugin.onSettingChanged();
+                this.update();
               }
             });
           });

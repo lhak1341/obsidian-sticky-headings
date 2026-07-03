@@ -1,6 +1,6 @@
 import type { App, FuzzyMatch } from 'obsidian';
 import { FuzzySuggestModal, sanitizeHTMLToDom, setIcon } from 'obsidian';
-import type { Heading } from 'src/types';
+import type { Heading } from '../../types';
 
 export class HeadingSuggester extends FuzzySuggestModal<Heading> {
   headings: Heading[];
@@ -23,7 +23,7 @@ export class HeadingSuggester extends FuzzySuggestModal<Heading> {
   }
 
   getItemText(item: Heading): string {
-    return new DOMParser().parseFromString(item.title, 'text/html').body.textContent ?? '';
+    return item.title.replace(/<[^>]*>/g, '');
   }
 
   renderSuggestion(item: FuzzyMatch<Heading>, el: HTMLElement): void {

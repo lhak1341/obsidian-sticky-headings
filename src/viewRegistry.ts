@@ -2,6 +2,15 @@ import type { EventRef, MarkdownView, TFile } from 'obsidian';
 import type { StickyHeaderPair } from './stickyHeader';
 import type { Heading } from './types';
 
+export interface ViewEntryInit {
+  file: TFile;
+  view: MarkdownView;
+  headings: Heading[];
+  stickyHeaders: StickyHeaderPair;
+  editMode: boolean;
+  layoutChangeEvent: EventRef;
+}
+
 export class ViewEntry {
   file: TFile;
   view: MarkdownView;
@@ -13,22 +22,14 @@ export class ViewEntry {
   private scrollListener: ((e: Event) => void) | null = null;
   private offref: (ref: EventRef) => void;
 
-  constructor(
-    file: TFile,
-    view: MarkdownView,
-    headings: Heading[],
-    stickyHeaders: StickyHeaderPair,
-    editMode: boolean,
-    layoutChangeEvent: EventRef,
-    offref: (ref: EventRef) => void
-  ) {
-    this.file = file;
-    this.view = view;
-    this.headings = headings;
-    this.stickyHeaders = stickyHeaders;
-    this.editMode = editMode;
+  constructor(init: ViewEntryInit, offref: (ref: EventRef) => void) {
+    this.file = init.file;
+    this.view = init.view;
+    this.headings = init.headings;
+    this.stickyHeaders = init.stickyHeaders;
+    this.editMode = init.editMode;
     this.currentIndex = -1;
-    this.layoutChangeEvent = layoutChangeEvent;
+    this.layoutChangeEvent = init.layoutChangeEvent;
     this.offref = offref;
   }
 
@@ -60,16 +61,8 @@ export class ViewRegistry {
     this.offref = offref;
   }
 
-  register(
-    leafId: string,
-    file: TFile,
-    view: MarkdownView,
-    headings: Heading[],
-    stickyHeaders: StickyHeaderPair,
-    editMode: boolean,
-    layoutChangeEvent: EventRef
-  ): ViewEntry {
-    const entry = new ViewEntry(file, view, headings, stickyHeaders, editMode, layoutChangeEvent, this.offref);
+  register(leafId: string, init: ViewEntryInit): ViewEntry {
+    const entry = new ViewEntry(init, this.offref);
     this.map.set(leafId, entry);
     return entry;
   }
