@@ -31,34 +31,34 @@
   "license": "MIT",
   "devDependencies": {
     "@codemirror/view": "^6.32.0",
-    "@eslint/js": "^9",
-    "@stylistic/eslint-plugin": "^2.6.4",
+    "@eslint/js": "^10",
+    "@stylistic/eslint-plugin": "^5.10.0",
     "@tsconfig/svelte": "^5.0.4",
-    "@types/eslint__js": "^8.42.3",
+    "@types/eslint__js": "^9.14.0",
     "@types/lodash": "^4.17.7",
-    "@types/node": "^20.15.0",
-    "builtin-modules": "3.3.0",
-    "esbuild": "0.23.0",
-    "esbuild-svelte": "^0.8.1",
-    "eslint": "9.39.4",
-    "eslint-plugin-obsidianmd": "^0.3.0",
+    "@types/node": "^26.1.0",
+    "builtin-modules": "5.3.0",
+    "esbuild": "0.28.1",
+    "esbuild-svelte": "^0.9.5",
+    "eslint": "10.6.0",
+    "eslint-plugin-obsidianmd": "^0.4.1",
     "husky": "^9.1.4",
     "obsidian": "latest",
-    "obsidian-typings": "^2.2.0",
-    "prettier": "^3.3.3",
-    "prettier-plugin-svelte": "^3.2.6",
-    "svelte": "^4.2.18",
+    "obsidian-typings": "^6.19.0",
+    "prettier": "^3.9.4",
+    "prettier-plugin-svelte": "^4.1.1",
+    "svelte": "^5.56.4",
     "svelte-preprocess": "^6.0.2",
-    "tslib": "2.6.3",
-    "typescript": "5.5.3",
-    "typescript-eslint": "^8.62.0"
+    "tslib": "2.8.1",
+    "typescript": "6.0.3",
+    "typescript-eslint": "^8.62.1"
   },
   "dependencies": {
     "lodash": "^4.17.21",
     "typesafe-i18n": "^5.26.2"
   },
   "overrides": {
-    "eslint": "9.39.4"
+    "eslint": "10.6.0"
   },
   "lint-staged": {
     "*.ts": "eslint --cache --fix",

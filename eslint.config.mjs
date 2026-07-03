@@ -6,11 +6,7 @@ import obsidianmd from 'eslint-plugin-obsidianmd';
 export default tseslint.config(
   ...obsidianmd.configs.recommended,
   {
-    extends: [
-      eslint.configs.recommended,
-      ...tseslint.configs.recommendedTypeChecked,
-      stylistic.configs['recommended-flat'],
-    ],
+    extends: [eslint.configs.recommended, ...tseslint.configs.recommendedTypeChecked, stylistic.configs['recommended']],
     plugins: {
       '@stylistic': stylistic,
     },
@@ -22,7 +18,15 @@ export default tseslint.config(
     },
   },
   {
-    ignores: ['main.js', 'dist/**/*', 'i18n/i18n-*.ts', '**/*.test.ts'],
+    ignores: [
+      '**/*.json',
+      'main.js',
+      'dist/**/*',
+      'i18n/i18n-*.ts',
+      '**/*.test.ts',
+      'esbuild.config.mjs',
+      'version-bump.mjs',
+    ],
   },
   {
     rules: {
@@ -78,22 +82,12 @@ export default tseslint.config(
           allowNamespace: true,
         },
       ],
-      '@stylistic/jsx-props-no-multi-spaces': 'error',
+      '@stylistic/no-multi-spaces': 'error',
       '@stylistic/jsx-self-closing-comp': [
         'error',
         {
           component: true,
           html: false,
-        },
-      ],
-      '@stylistic/jsx-sort-props': [
-        'error',
-        {
-          callbacksLast: true,
-          shorthandFirst: true,
-          multiline: 'first',
-          noSortAlphabetically: true,
-          reservedFirst: true,
         },
       ],
       '@stylistic/member-delimiter-style': [

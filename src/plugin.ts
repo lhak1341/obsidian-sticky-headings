@@ -155,7 +155,7 @@ export default class StickyHeadingsPlugin extends Plugin {
         const headings = await this.retrieveHeadings(file, view);
         if (!this.registry.has(id)) {
           const stickyHeaders = mountStickyHeaders(view, this.settings);
-          // eslint-disable-next-line @typescript-eslint/no-misused-promises
+          // eslint-disable-next-line @typescript-eslint/no-misused-promises -- workspace.on accepts async listeners
           const layoutChangeEvent = this.app.workspace.on('layout-change', this.handleComponentUpdate.bind(this, view));
           this.registry.register(id, {
             file,

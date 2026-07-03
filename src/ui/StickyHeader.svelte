@@ -1,5 +1,3 @@
-<svelte:options accessors={true} />
-
 <script lang="ts">
   import { getIcon, MarkdownView } from 'obsidian';
   import type { Heading, ISetting } from '../types';
@@ -7,19 +5,38 @@
   import { getScroller } from '../utils/obsidian';
   import { delay } from '../utils/delay';
   import { animateScroll } from '../utils/scroll';
-  export let headings: Heading[];
-  export let editMode: boolean;
-  export let view: MarkdownView;
-  export let settings: ISetting;
-  export let getExpectedHeadings: (clickHeadingIndex: number) => Heading[];
-  export let showFileName: boolean;
-  export let expectedHeadings: Heading[] = [];
-  let main: HTMLElement;
-  let shadow: HTMLElement;
-  let forceRenderingHeadings: Heading[] | null = null;
 
-  const filename = view.getFile()?.basename;
-  export const showIcons: boolean = true;
+  let headings = $state<Heading[]>([]);
+  let editMode = $state(false);
+  let view = $state<MarkdownView | null>(null);
+  let settings = $state<ISetting | null>(null);
+  let getExpectedHeadings = $state<(clickHeadingIndex: number) => Heading[]>(() => []);
+  let showFileName = $state(false);
+  let expectedHeadings = $state<Heading[]>([]);
+  let forceRenderingHeadings = $state<Heading[] | null>(null);
+
+  let main = $state<HTMLElement | undefined>(undefined);
+  let shadow = $state<HTMLElement | undefined>(undefined);
+
+  const filename = $derived(view?.getFile()?.basename);
+
+  export function update(props: {
+    headings?: Heading[];
+    editMode?: boolean;
+    view?: MarkdownView;
+    settings?: ISetting;
+    getExpectedHeadings?: (clickHeadingIndex: number) => Heading[];
+    showFileName?: boolean;
+    expectedHeadings?: Heading[];
+  }) {
+    if (props.headings !== undefined) headings = props.headings;
+    if (props.editMode !== undefined) editMode = props.editMode;
+    if (props.view !== undefined) view = props.view;
+    if (props.settings !== undefined) settings = props.settings;
+    if (props.getExpectedHeadings !== undefined) getExpectedHeadings = props.getExpectedHeadings;
+    if (props.showFileName !== undefined) showFileName = props.showFileName;
+    if (props.expectedHeadings !== undefined) expectedHeadings = props.expectedHeadings;
+  }
 
   onMount(() => {
     console.debug('mounted svelte component');
@@ -38,14 +55,15 @@
   };
 
   const scrollTo = async (top: number) => {
+    if (!view) return;
     const scrollerSource = getScroller(view);
     // When jumping, the currently clicked title should not appear in props.headings. This is different from the manual scrolling scenario and needs to be corrected.
-    if (settings.scrollBehaviour === 'instant') {
+    if (settings?.scrollBehaviour === 'instant') {
       forceRenderingHeadings = [...expectedHeadings];
       scrollerSource.scrollTo({ top, behavior: 'instant' });
       // waiting for the throlled scroll to complete, the waiting time should be longer than the throlle wait time.
       await delay(80);
-      headings = forceRenderingHeadings;
+      headings = forceRenderingHeadings ?? [];
       forceRenderingHeadings = null;
     } else {
       // fixme: add easing function;
@@ -65,22 +83,22 @@
   };
 </script>
 
-{#if settings.mode !== 'disable'}
+{#if settings?.mode !== 'disable'}
   {#if (forceRenderingHeadings || headings).length > 0}
-    <div class={`sticky-headings-root sticky-headings-theme-${settings.theme}`} bind:this={main}>
+    <div class={`sticky-headings-root sticky-headings-theme-${settings?.theme}`} bind:this={main}>
       <div class="sticky-headings-container">
         {#key forceRenderingHeadings || headings}
           {#if showFileName && filename}
             <div
               class="sticky-headings-item"
-              on:click={() => scrollTo(0)}
+              onclick={() => scrollTo(0)}
               role="button"
               tabindex="0"
-              on:keydown={e => {
+              onkeydown={e => {
                 if (e.key === 'Enter') scrollTo(0);
               }}
             >
-              {#if settings.showIcon}
+              {#if settings?.showIcon}
                 <div class="sticky-headings-icon">
                   {@html getIcon('heading')?.outerHTML}
                 </div>
@@ -92,14 +110,14 @@
             <div
               class="sticky-headings-item"
               data-indent-level={heading.indentLevel + (showFileName ? 1 : 0)}
-              on:click={() => handleScrollClick(heading)}
+              onclick={() => handleScrollClick(heading)}
               role="button"
               tabindex="0"
-              on:keydown={e => {
+              onkeydown={e => {
                 if (e.key === 'Enter') handleScrollClick(heading);
               }}
             >
-              {#if settings.showIcon}
+              {#if settings?.showIcon}
                 {#if editMode}
                   {#each { length: heading.level } as _, i}
                     #
@@ -117,7 +135,10 @@
       </div>
     </div>
   {/if}
-  <div class={`sticky-headings-root sticky-headings-shadow sticky-headings-theme-${settings.theme}`} bind:this={shadow}>
+  <div
+    class={`sticky-headings-root sticky-headings-shadow sticky-headings-theme-${settings?.theme}`}
+    bind:this={shadow}
+  >
     <div class="sticky-headings-container">
       {#key expectedHeadings}
         {#if showFileName && filename}

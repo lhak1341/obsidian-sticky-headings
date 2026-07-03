@@ -1,9 +1,20 @@
 <script lang="ts">
-  import { MarkdownView, TFile } from 'obsidian';
+  import type { MarkdownView, TFile } from 'obsidian';
   import type { Heading } from '../../types';
-  export let heading: Heading | undefined;
-  export let view: MarkdownView | undefined;
-  export let file: TFile | undefined;
+
+  let heading = $state<Heading | undefined>(undefined);
+  let view = $state<MarkdownView | undefined>(undefined);
+  let file = $state<TFile | undefined>(undefined);
+
+  export function update(props: {
+    heading?: Heading | undefined;
+    view?: MarkdownView | undefined;
+    file?: TFile | undefined;
+  }) {
+    if ('heading' in props) heading = props.heading;
+    if ('view' in props) view = props.view;
+    if ('file' in props) file = props.file;
+  }
 </script>
 
 {#if heading && file && view}
